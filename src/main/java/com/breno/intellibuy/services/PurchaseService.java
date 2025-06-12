@@ -70,7 +70,7 @@ public class PurchaseService {
     }
 
     @Transactional
-    public Purchase updatePurchase(Long id, Purchase updatePurchase) {
+    public Purchase update(Long id, Purchase updatePurchase) {
         return purchaseRepository.findById(id)
                 .map(existsPurchase -> {
                     if (updatePurchase.getCustomer() != null && updatePurchase.getCustomer().getId() != null) {
