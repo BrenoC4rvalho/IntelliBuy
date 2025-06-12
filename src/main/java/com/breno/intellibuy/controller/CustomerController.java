@@ -1,10 +1,13 @@
 package com.breno.intellibuy.controller;
 
+import com.breno.intellibuy.model.Customer;
 import com.breno.intellibuy.services.CustomerService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/customer")
@@ -13,47 +16,42 @@ public class CustomerController {
     @Autowired
     private CustomerService customerService;
 
-    // Endpoint para criar um novo cliente (POST /clientes)
     @PostMapping
-    public ResponseEntity<Cliente> createCliente(@RequestBody Cliente cliente) {
-        Cliente savedCliente = clienteService.saveCliente(cliente);
-        return new ResponseEntity<>(savedCliente, HttpStatus.CREATED); // Retorna 201 Created
+    public ResponseEntity<Customer> create(@RequestBody Customer customer) {
+        Customer savedCustomer = customerService.save(customer);
+        return new ResponseEntity<>(savedCustomer, HttpStatus.CREATED);
     }
 
-    // Endpoint para buscar todos os clientes (GET /clientes)
     @GetMapping
-    public ResponseEntity<List<Cliente>> getAllClientes() {
-        List<Cliente> clientes = clienteService.getAllClientes();
-        return new ResponseEntity<>(clientes, HttpStatus.OK); // Retorna 200 OK
+    public ResponseEntity<List<Customer>> getAllCustomers() {
+        List<Customer> customers = customerService.getAll();
+        return new ResponseEntity<>(customers, HttpStatus.OK);
     }
 
-    // Endpoint para buscar cliente por ID (GET /clientes/{id})
     @GetMapping("/{id}")
-    public ResponseEntity<Cliente> getClienteById(@PathVariable Long id) {
-        return clienteService.getClienteById(id)
-                .map(cliente -> new ResponseEntity<>(cliente, HttpStatus.OK)) // Retorna 200 OK se encontrado
-                .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND)); // Retorna 404 Not Found se não encontrado
+    public ResponseEntity<Customer> getCustomerById(@PathVariable Long id) {
+        return customerService.getById(id)
+                .map(customer -> new ResponseEntity<>(customer, HttpStatus.OK))
+                .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
     }
 
-    // Endpoint para atualizar um cliente (PUT /clientes/{id})
     @PutMapping("/{id}")
-    public ResponseEntity<Cliente> updateCliente(@PathVariable Long id, @RequestBody Cliente cliente) {
-        return clienteService.getClienteById(id)
-                .map(clienteExistente -> {
-                    cliente.setId(id); // Garante que o ID do cliente seja o do path
-                    Cliente updatedCliente = clienteService.saveCliente(cliente);
-                    return new ResponseEntity<>(updatedCliente, HttpStatus.OK);
+    public ResponseEntity<Customer> updateCustomer(@PathVariable Long id, @RequestBody Customer customer) {
+        return customerService.getById(id)
+                .map(existCustomer -> {
+                    customer.setId(id);
+                    Customer updatedCustomer = customerService.save(customer);
+                    return new ResponseEntity<>(updatedCustomer, HttpStatus.OK);
                 })
                 .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
     }
 
-    // Endpoint para deletar um cliente (DELETE /clientes/{id})
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteCliente(@PathVariable Long id) {
-        return clienteService.getClienteById(id)
-                .map(cliente -> {
-                    clienteService.deleteCliente(id);
-                    return new ResponseEntity<>(HttpStatus.NO_CONTENT); // Retorna 204 No Content
+    public ResponseEntity<?> deleteCustomer(@PathVariable Long id) {
+        return customerService.getById(id)
+                .map(customer -> {
+                    customerService.delete(id);
+                    return new ResponseEntity<>(HttpStatus.NO_CONTENT);
                 })
                 .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
     }
