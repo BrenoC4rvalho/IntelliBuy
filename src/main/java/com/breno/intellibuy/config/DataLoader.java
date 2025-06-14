@@ -26,7 +26,7 @@ public class DataLoader implements CommandLineRunner {
 
         if (productService.getAll().isEmpty()) {
             System.out.println("No products found. Generating dummy product data...");
-            generateDummyProducts(10); 
+            generateDummyProducts(10);
         } else {
             System.out.println("Existing products detected. Skipping dummy data generation.");
         }

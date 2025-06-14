@@ -18,11 +18,11 @@ public class AIChatController {
     }
 
     @GetMapping("/ask")
-    public ResponseEntity<?> askAboutProducts(@RequestParam String query) {
-        if (query == null || query.trim().isEmpty()) {
-            return ResponseEntity.badRequest().body("A pergunta não pode ser vazia.");
+    public ResponseEntity<?> askAboutProducts(@RequestParam String question) {
+        if (question == null || question.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body("The question cannot be empty.");
         }
-        String answer = productEmbeddingService.generateAnswer(query);
+        String answer = productEmbeddingService.generateAnswer(question);
         return ResponseEntity.ok(answer);
     }
 

@@ -59,10 +59,10 @@ public class ProductEmbeddingService {
                         .map(String::valueOf)
                         .collect(Collectors.joining(", ", "[", "]"));
             } else {
-                throw new RuntimeException("Resposta do Ollama não contém 'embedding' como um array.");
+                throw new RuntimeException("Ollama's response does not contain 'embedding' as an array.");
             }
         } catch (Exception e) {
-            throw new RuntimeException("Falha ao gerar embedding com Ollama para o texto: '" + text.substring(0, Math.min(text.length(), 100)) + "...' - " + e.getMessage(), e);
+            throw new RuntimeException("Failed to generate embedding with Ollama for text: '" + text.substring(0, Math.min(text.length(), 100)) + "...' - " + e.getMessage(), e);
         }
     }
 
@@ -90,16 +90,16 @@ public class ProductEmbeddingService {
         List<ProductEmbedding> relevantProductEmbeddings = productEmbeddingRepository.findNearestNeighbors(queryEmbedding, 5);
 
         if (relevantProductEmbeddings.isEmpty()) {
-            return "Não encontrei informações relevantes de produtos em meu catálogo para responder a sua pergunta.";
+            return "I did not find relevant product information in my catalog to answer your question.";
         }
 
         StringBuilder context = new StringBuilder();
-        context.append("Você é um assistente de e-commerce. Com base nas seguintes informações de produtos, responda à pergunta do usuário. Se a pergunta não puder ser respondida com as informações fornecidas, diga que você não tem dados suficientes. Não adicione informações externas ou invente produtos.\n\n");
+        context.append("You are an e-commerce assistant. Based on the following product information, answer the user's question. If the question cannot be answered with the information provided, please say that you do not have enough data. Do not add extraneous information or make up products. /n/n");
         for (int i = 0; i < relevantProductEmbeddings.size(); i++) {
-            context.append("Informação do Produto ").append(i + 1).append(": ").append(relevantProductEmbeddings.get(i).getContent()).append("\n");
+            context.append("Product Information ").append(i + 1).append(": ").append(relevantProductEmbeddings.get(i).getContent()).append("\n");
         }
-        context.append("\nPergunta do Usuário: ").append(query).append("\n");
-        context.append("Resposta:");
+        context.append("\nUser question: ").append(query).append("\n");
+        context.append("Response:");
 
         return callOllamaForGeneration(context.toString());
     }
@@ -120,26 +120,26 @@ public class ProductEmbeddingService {
             if (responseNode.isTextual()) {
                 return responseNode.asText();
             } else {
-                throw new RuntimeException("Resposta do Ollama não contém 'response' como texto.");
+                throw new RuntimeException("Ollama's response does not contain 'response' as text.");
             }
         } catch (Exception e) {
-            throw new RuntimeException("Falha ao gerar resposta com Ollama: " + e.getMessage(), e);
+            throw new RuntimeException("Failed to generate response with Ollama: " + e.getMessage(), e);
         }
     }
 
     @Transactional
     public void ingestAllProducts() {
         List<Product> allProducts = productRepository.findAll();
-        System.out.println("Iniciando ingestão/atualização de embeddings para " + allProducts.size() + " produtos.");
+        System.out.println("Starting ingestion/update of embeddings for " + allProducts.size() + " product.");
         allProducts.forEach(product -> {
             try {
                 saveOrUpdateProductEmbedding(product);
-                System.out.println("Embedding para produto '" + product.getName() + "' salvo/atualizado.");
+                System.out.println("Product Embedding '" + product.getName() + "' saved/updated.");
             } catch (Exception e) {
-                System.err.println("Erro ao processar embedding para o produto " + product.getName() + " (ID: " + product.getId() + "): " + e.getMessage());
+                System.err.println("Error processing embedding for product " + product.getName() + " (ID: " + product.getId() + "): " + e.getMessage());
             }
         });
-        System.out.println("Ingestão/atualização de embeddings concluída.");
+        System.out.println("Embedding ingestion/update completed.");
     }
 
 }
