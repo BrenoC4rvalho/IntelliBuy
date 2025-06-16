@@ -1,17 +1,19 @@
 package com.breno.intellibuy.services.ai;
 
+
 import com.breno.intellibuy.model.Product;
-import com.breno.intellibuy.model.ai.ProductEmbedding;
 import com.breno.intellibuy.repository.ProductRepository;
-import com.breno.intellibuy.repository.ai.ProductEmbeddingRepository;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.chat.prompt.SystemPromptTemplate;
+import org.springframework.ai.document.Document;
+import org.springframework.ai.vectorstore.SearchRequest;
+import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestTemplate;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -19,127 +21,64 @@ import java.util.stream.Collectors;
 @Service
 public class ProductEmbeddingService {
 
-    @Value("${ollama.api.url}")
-    private String ollamaApiUrl;
-
-    @Value("${ollama.embedding.model}")
-    private String ollamaEmbeddingModel;
-
-    @Value("${ollama.generation.model}")
-    private String ollamaGenerationModel;
-
-    private final RestTemplate restTemplate;
-    private final ProductEmbeddingRepository productEmbeddingRepository;
     private final ProductRepository productRepository;
-    private final ObjectMapper objectMapper;
+    private final VectorStore vectorStore;
+    private final ChatClient chatClient;
 
-    public ProductEmbeddingService(ProductEmbeddingRepository productEmbeddingRepository, ProductRepository productRepository) {
-        this.productEmbeddingRepository = productEmbeddingRepository;
+    @Value("classpath:/prompts/system-message.st")
+    private Resource systemMessage;
+
+    public ProductEmbeddingService(ProductRepository productRepository, VectorStore vectorStore, ChatClient.Builder chatClientBuilder) {
         this.productRepository = productRepository;
-        this.restTemplate = new RestTemplate();
-        this.objectMapper = new ObjectMapper();
-    }
-
-    public String generateEmbedding(String text) {
-        String url = ollamaApiUrl + "/api/embeddings";
-
-        Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("model", ollamaEmbeddingModel);
-        requestBody.put("prompt", text);
-
-        try {
-            String response = restTemplate.postForObject(url, requestBody, String.class);
-            JsonNode root = objectMapper.readTree(response);
-            JsonNode embeddingNode = root.path("embedding");
-
-            if (embeddingNode.isArray()) {
-                List<Double> embeddingList = objectMapper.convertValue(embeddingNode,
-                        objectMapper.getTypeFactory().constructCollectionType(List.class, Double.class));
-                return embeddingList.stream()
-                        .map(String::valueOf)
-                        .collect(Collectors.joining(", ", "[", "]"));
-            } else {
-                throw new RuntimeException("Ollama's response does not contain 'embedding' as an array.");
-            }
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to generate embedding with Ollama for text: '" + text.substring(0, Math.min(text.length(), 100)) + "...' - " + e.getMessage(), e);
-        }
+        this.vectorStore = vectorStore;
+        this.chatClient = chatClientBuilder.build();
     }
 
     @Transactional
-    public ProductEmbedding saveOrUpdateProductEmbedding(Product product) {
+    public void ingestAllProductsToVectorStore() {
+        List<Product> allProducts = productRepository.findAll();
+        System.out.println("Starting ingestion of " + allProducts.size() + " products to Vector Store.");
 
-        String contentToEmbed = String.format("Product: %s. Description: %s. Price: $%.2f.",
-                product.getName(), product.getDescription(), product.getPrice());
+        List<Document> documents = allProducts.stream().map(product -> {
+            String content = String.format("Product: %s. Description: %s. Price: $%.2f.",
+                    product.getName(), product.getDescription(), product.getPrice());
 
-        String embeddingString = generateEmbedding(contentToEmbed);
+            Map<String, Object> metadata = Map.of(
+                    "product_id", product.getId(),
+                    "product_name", product.getName(),
+                    "product_price", product.getPrice().doubleValue()
+            );
+            return new Document(content, metadata);
+        }).collect(Collectors.toList());
 
-        ProductEmbedding productEmbedding = productEmbeddingRepository.findByProductId(product.getId())
-                .orElse(new ProductEmbedding());
-
-        productEmbedding.setProduct(product);
-        productEmbedding.setContent(contentToEmbed);
-        productEmbedding.setEmbedding(embeddingString);
-
-        return productEmbeddingRepository.save(productEmbedding);
+        if (!documents.isEmpty()) {
+            vectorStore.add(documents);
+            System.out.println("Ingestion of product embeddings to Vector Store completed successfully.");
+        } else {
+            System.out.println("No products to ingest to Vector Store.");
+        }
     }
 
     public String generateAnswer(String query) {
-        String queryEmbedding = generateEmbedding(query);
+        List<Document> relevantDocuments = vectorStore.similaritySearch(
+            SearchRequest.builder()
+                    .query(query)
+                    .topK(5)
+                    .build()
+        );
 
-        List<ProductEmbedding> relevantProductEmbeddings = productEmbeddingRepository.findNearestNeighbors(queryEmbedding, 5);
-
-        if (relevantProductEmbeddings.isEmpty()) {
-            return "I did not find relevant product information in my catalog to answer your question.";
+        if (relevantDocuments.isEmpty()) {
+            return "No relevant product information found in my catalog to answer your question.";
         }
 
-        StringBuilder context = new StringBuilder();
-        context.append("You are an e-commerce assistant. Based on the following product information, answer the user's question. If the question cannot be answered with the information provided, please say that you do not have enough data. Do not add extraneous information or make up products. /n/n");
-        for (int i = 0; i < relevantProductEmbeddings.size(); i++) {
-            context.append("Product Information ").append(i + 1).append(": ").append(relevantProductEmbeddings.get(i).getContent()).append("\n");
-        }
-        context.append("\nUser question: ").append(query).append("\n");
-        context.append("Response:");
+        String context = relevantDocuments.stream()
+                .map(Document::getText)
+                .collect(Collectors.joining("\n---\n"));
 
-        return callOllamaForGeneration(context.toString());
-    }
+        SystemPromptTemplate systemPromptTemplate = new SystemPromptTemplate(systemMessage);
+        Prompt prompt = new Prompt(systemPromptTemplate.createMessage(Map.of("context", context, "query", query)));
 
-    private String callOllamaForGeneration(String prompt) {
-        String url = ollamaApiUrl + "/api/generate";
-
-        Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("model", ollamaGenerationModel);
-        requestBody.put("prompt", prompt);
-        requestBody.put("stream", false);
-
-        try {
-            String response = restTemplate.postForObject(url, requestBody, String.class);
-            JsonNode root = objectMapper.readTree(response);
-            JsonNode responseNode = root.path("response");
-
-            if (responseNode.isTextual()) {
-                return responseNode.asText();
-            } else {
-                throw new RuntimeException("Ollama's response does not contain 'response' as text.");
-            }
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to generate response with Ollama: " + e.getMessage(), e);
-        }
-    }
-
-    @Transactional
-    public void ingestAllProducts() {
-        List<Product> allProducts = productRepository.findAll();
-        System.out.println("Starting ingestion/update of embeddings for " + allProducts.size() + " product.");
-        allProducts.forEach(product -> {
-            try {
-                saveOrUpdateProductEmbedding(product);
-                System.out.println("Product Embedding '" + product.getName() + "' saved/updated.");
-            } catch (Exception e) {
-                System.err.println("Error processing embedding for product " + product.getName() + " (ID: " + product.getId() + "): " + e.getMessage());
-            }
-        });
-        System.out.println("Embedding ingestion/update completed.");
+        return chatClient.prompt(prompt).call().content();
     }
 
 }
