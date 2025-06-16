@@ -1,6 +1,8 @@
 package com.breno.intellibuy.config;
 
+import com.breno.intellibuy.model.Customer;
 import com.breno.intellibuy.model.Product;
+import com.breno.intellibuy.services.CustomerService;
 import com.breno.intellibuy.services.ProductService;
 import com.breno.intellibuy.services.ai.ProductEmbeddingService;
 import org.springframework.boot.CommandLineRunner;
@@ -8,6 +10,8 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 
 @Component
@@ -15,10 +19,16 @@ public class DataLoader implements CommandLineRunner {
 
     private final ProductEmbeddingService productEmbeddingService;
     private final ProductService productService;
+    private final CustomerService customerService;
 
-    public DataLoader(ProductEmbeddingService productEmbeddingService, ProductService productService) {
+    public DataLoader(
+            ProductEmbeddingService productEmbeddingService,
+            ProductService productService,
+            CustomerService customerService
+    ) {
         this.productEmbeddingService = productEmbeddingService;
         this.productService = productService;
+        this.customerService = customerService;
     }
 
     @Override
@@ -29,6 +39,13 @@ public class DataLoader implements CommandLineRunner {
             generateDummyProducts(10);
         } else {
             System.out.println("Existing products detected. Skipping dummy data generation.");
+        }
+
+        if (customerService.getAll().isEmpty()) {
+            System.out.println("No customers found. Generating dummy customer data...");
+            generateDummyCustomers();
+        } else {
+            System.out.println("Existing customers detected. Skipping dummy data generation.");
         }
 
         productEmbeddingService.ingestAllProductsToVectorStore();
@@ -84,6 +101,29 @@ public class DataLoader implements CommandLineRunner {
             System.out.println("Dummy product created: " + product.getName() + " - $" + product.getPrice());
         }
         System.out.println(numberOfProducts + " dummy products successfully generated.");
+    }
+
+    private void generateDummyCustomers() {
+
+        String[] names = { "Mia", "Bryan", "Robert", "John", "Maya", "Steve", "Mohamed", "Emma", "Sophia", "Harper" };
+
+        String[] listCPF = { "12345", "12346", "12347", "12348", "12349", "12351", "12352", "12353", "12354", "12355" };
+
+        String[] listPhone = { "9911", "9922", "9933", "9944", "9955", "9966", "9977", "9988", "9999", "9900" };
+
+        for (int i = 0; i < 10; i++) {
+
+            Customer customer = new Customer();
+            customer.setName(names[i]);
+            customer.setCpf(listCPF[i]);
+            customer.setPhone(listPhone[i]);
+
+            customerService.save(customer);
+            System.out.println("Dummy customer created: " + customer.getName());
+        }
+
+        System.out.println("Dummy customers successfully generated");
+
     }
 
 }
