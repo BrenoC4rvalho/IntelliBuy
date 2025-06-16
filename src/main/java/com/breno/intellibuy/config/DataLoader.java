@@ -4,29 +4,27 @@ import com.breno.intellibuy.model.Customer;
 import com.breno.intellibuy.model.Product;
 import com.breno.intellibuy.services.CustomerService;
 import com.breno.intellibuy.services.ProductService;
-import com.breno.intellibuy.services.ai.ProductEmbeddingService;
+import com.breno.intellibuy.services.ai.DataEmbeddingService;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Random;
 
 @Component
 public class DataLoader implements CommandLineRunner {
 
-    private final ProductEmbeddingService productEmbeddingService;
+    private final DataEmbeddingService dataEmbeddingService;
     private final ProductService productService;
     private final CustomerService customerService;
 
     public DataLoader(
-            ProductEmbeddingService productEmbeddingService,
+            DataEmbeddingService dataEmbeddingService,
             ProductService productService,
             CustomerService customerService
     ) {
-        this.productEmbeddingService = productEmbeddingService;
+        this.dataEmbeddingService = dataEmbeddingService;
         this.productService = productService;
         this.customerService = customerService;
     }
@@ -48,7 +46,7 @@ public class DataLoader implements CommandLineRunner {
             System.out.println("Existing customers detected. Skipping dummy data generation.");
         }
 
-        productEmbeddingService.ingestAllProductsToVectorStore();
+        dataEmbeddingService.ingestAllDataToVectorStore();
     }
 
     private void generateDummyProducts(int numberOfProducts) {
