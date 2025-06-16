@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   db:
     image: ankane/pgvector:latest
@@ -11,11 +9,6 @@ services:
       - "5432:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-HEALTCHECK", "pg_isready", "-U", "seu_usuario"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
     restart: always
 
 volumes:
