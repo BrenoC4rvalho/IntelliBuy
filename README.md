@@ -64,3 +64,14 @@ The PostgreSQL database with `pgvector` is managed via Docker Compose.
 
     ```yaml
     version:
+
+docker compose exec db psql -U your_db_user -d intellibuy_db
+-- Dentro do psql:
+CREATE EXTENSION IF NOT EXISTS vector;
+CREATE TABLE IF NOT EXISTS product_embeddings_ai (
+id VARCHAR(255) PRIMARY KEY,
+content TEXT,
+metadata JSONB,
+embedding VECTOR(768) -- Ajuste esta dimensão!
+);
+\q
