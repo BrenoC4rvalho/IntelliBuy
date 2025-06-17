@@ -7,7 +7,7 @@ If the information is not in the context, say that you don't have enough informa
 
 Context:
 ---
-<[context]>
+{context}
 ---
 
-User Query: <[query]>
+User Query: {query}
