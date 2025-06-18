@@ -2,14 +2,20 @@ package com.breno.intellibuy.config;
 
 import com.breno.intellibuy.model.Customer;
 import com.breno.intellibuy.model.Product;
+import com.breno.intellibuy.model.Purchase;
+import com.breno.intellibuy.model.PurchaseItem;
 import com.breno.intellibuy.services.CustomerService;
 import com.breno.intellibuy.services.ProductService;
+import com.breno.intellibuy.services.PurchaseService;
 import com.breno.intellibuy.services.ai.DataEmbeddingService;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Random;
 
 @Component
@@ -18,15 +24,18 @@ public class DataLoader implements CommandLineRunner {
     private final DataEmbeddingService dataEmbeddingService;
     private final ProductService productService;
     private final CustomerService customerService;
+    private final PurchaseService purchaseService;
 
     public DataLoader(
             DataEmbeddingService dataEmbeddingService,
             ProductService productService,
-            CustomerService customerService
+            CustomerService customerService,
+            PurchaseService purchaseService
     ) {
         this.dataEmbeddingService = dataEmbeddingService;
         this.productService = productService;
         this.customerService = customerService;
+        this.purchaseService = purchaseService;
     }
 
     @Override
@@ -44,6 +53,13 @@ public class DataLoader implements CommandLineRunner {
             generateDummyCustomers();
         } else {
             System.out.println("Existing customers detected. Skipping dummy data generation.");
+        }
+
+        if (purchaseService.getAll().isEmpty()) {
+            System.out.println("No purchases found. Generating dummy purchase data...");
+            generateDummyPurchases();
+        } else {
+            System.out.println("Existing purchases detected. Skipping dummy data generation.");
         }
 
         dataEmbeddingService.ingestAllDataToVectorStore();
@@ -122,6 +138,49 @@ public class DataLoader implements CommandLineRunner {
 
         System.out.println("Dummy customers successfully generated");
 
+    }
+
+    private void generateDummyPurchases() {
+
+        Random random = new Random();
+        List<Customer> customers = customerService.getAll();
+        List<Product> products = productService.getAll();
+
+        if (customers.isEmpty() || products.isEmpty()) {
+            System.out.println("Cannot generate purchases without customers and products.");
+            return;
+        }
+
+        for (int i = 0; i < 8; i++) {
+            Purchase purchase = new Purchase();
+
+            Customer randomCustomer = customers.get(random.nextInt(customers.size()));
+            purchase.setCustomer(randomCustomer);
+
+            List<PurchaseItem> items = new ArrayList<>();
+            Collections.shuffle(products);
+
+            int numberOfItems = random.nextInt(2) + 1;
+            for (int j = 0; j < numberOfItems; j++) {
+                Product randomProduct = products.get(j);
+                int quantity = random.nextInt(2) + 1;
+
+                PurchaseItem item = new PurchaseItem();
+                item.setProduct(randomProduct);
+                item.setQuantity(quantity);
+                items.add(item);
+            }
+
+            purchase.setPurchaseItem(items);
+
+            try {
+                purchaseService.save(purchase);
+                System.out.println("Dummy purchase created for customer: " + randomCustomer.getName());
+            } catch (Exception e) {
+                System.err.println("Error creating dummy purchase: " + e.getMessage());
+            }
+        }
+        System.out.println("Dummy purchases successfully generated.");
     }
 
 }
