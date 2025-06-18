@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/ai/products")
+@RequestMapping("/ai/chat")
 public class AIChatController {
 
     private final DataEmbeddingService productEmbeddingService;
