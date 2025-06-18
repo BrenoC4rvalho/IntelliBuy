@@ -3,8 +3,10 @@ package com.breno.intellibuy.services.ai;
 
 import com.breno.intellibuy.model.Customer;
 import com.breno.intellibuy.model.Product;
+import com.breno.intellibuy.model.Purchase;
 import com.breno.intellibuy.repository.CustomerRepository;
 import com.breno.intellibuy.repository.ProductRepository;
+import com.breno.intellibuy.repository.PurchaseRepository;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.prompt.SystemPromptTemplate;
@@ -26,6 +28,7 @@ public class DataEmbeddingService {
 
     private final ProductRepository productRepository;
     private final CustomerRepository customerRepository;
+    private final PurchaseRepository purchaseRepository;
     private final VectorStore vectorStore;
     private final ChatClient chatClient;
 
@@ -35,10 +38,12 @@ public class DataEmbeddingService {
     public DataEmbeddingService(
             ProductRepository productRepository,
             CustomerRepository customerRepository,
+            PurchaseRepository purchaseRepository,
             VectorStore vectorStore,
             ChatClient.Builder chatClientBuilder) {
         this.productRepository = productRepository;
         this.customerRepository = customerRepository;
+        this.purchaseRepository = purchaseRepository;
         this.vectorStore = vectorStore;
         this.chatClient = chatClientBuilder.build();
     }
@@ -76,9 +81,33 @@ public class DataEmbeddingService {
             return new Document(content, metadata);
         }).toList();
 
+        List<Purchase> allPurchases = purchaseRepository.findAll();
+        System.out.println("Starting ingestion of " + allPurchases.size() + " purchases to Vector Store.");
+        List<Document> purchaseDocuments = allPurchases.stream().map(purchase -> {
+            String itemsSummary = purchase.getPurchaseItem().stream()
+                    .map(item -> String.format("%d unit(s) of %s", item.getQuantity(), item.getProduct().getName()))
+                    .collect(Collectors.joining(", "));
+
+            String content = String.format("Purchase made by customer %s on %s. Items: [%s]. Total value: $%.2f.",
+                    purchase.getCustomer().getName(),
+                    purchase.getDatePurchase().toLocalDate().toString(),
+                    itemsSummary,
+                    purchase.getTotalValue());
+
+            Map<String, Object> metadata = Map.of(
+                    "type", "purchase",
+                    "purchase_id", purchase.getId(),
+                    "customer_id", purchase.getCustomer().getId(),
+                    "total_value", purchase.getTotalValue().doubleValue(),
+                    "purchase_date", purchase.getDatePurchase().toString()
+            );
+            return new Document(content, metadata);
+        }).toList();
+
         List<Document> allDocuments = new ArrayList<>();
         allDocuments.addAll(productDocuments);
         allDocuments.addAll(customerDocuments);
+        allDocuments.addAll(purchaseDocuments);
 
 
         if (!allDocuments.isEmpty()) {
