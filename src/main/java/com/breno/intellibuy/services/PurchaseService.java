@@ -7,6 +7,7 @@ import com.breno.intellibuy.model.PurchaseItem;
 import com.breno.intellibuy.repository.CustomerRepository;
 import com.breno.intellibuy.repository.ProductRepository;
 import com.breno.intellibuy.repository.PurchaseRepository;
+import com.breno.intellibuy.services.ai.DataEmbeddingService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -21,14 +22,22 @@ import java.util.Optional;
 @Service
 public class PurchaseService {
 
-    @Autowired
-    private PurchaseRepository purchaseRepository;
+    private final PurchaseRepository purchaseRepository;
+    private final CustomerRepository customerRepository;
+    private final ProductRepository productRepository;
+    private final DataEmbeddingService dataEmbeddingService;
 
-    @Autowired
-    private CustomerRepository customerRepository;
-
-    @Autowired
-    private ProductRepository productRepository;
+    public PurchaseService(
+            PurchaseRepository purchaseRepository,
+            CustomerRepository customerRepository,
+            ProductRepository productRepository,
+            DataEmbeddingService dataEmbeddingService
+    ) {
+        this.purchaseRepository = purchaseRepository;
+        this.customerRepository = customerRepository;
+        this.productRepository = productRepository;
+        this.dataEmbeddingService = dataEmbeddingService;
+    }
 
     @Transactional
     public Purchase save(Purchase purchase) {
@@ -54,7 +63,9 @@ public class PurchaseService {
         purchase.setDatePurchase(LocalDateTime.now());
         purchase.setTotalValue(totalValue);
 
-        return purchaseRepository.save(purchase);
+        Purchase savedPurchase = purchaseRepository.save(purchase);
+        dataEmbeddingService.embedPurchase(savedPurchase);
+        return savedPurchase;
     }
 
     public List<Purchase> getAll() {
@@ -93,7 +104,9 @@ public class PurchaseService {
                         existsPurchase.setTotalValue(newTotalValue);
                     }
 
-                    return purchaseRepository.save(existsPurchase);
+                    Purchase savedPurchase = purchaseRepository.save(existsPurchase);
+                    dataEmbeddingService.embedPurchase(savedPurchase);
+                    return savedPurchase;
                 })
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Purchase not found!"));
     }
