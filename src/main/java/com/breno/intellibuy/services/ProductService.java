@@ -2,7 +2,7 @@ package com.breno.intellibuy.services;
 
 import com.breno.intellibuy.model.Product;
 import com.breno.intellibuy.repository.ProductRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.breno.intellibuy.services.ai.DataEmbeddingService;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -11,11 +11,18 @@ import java.util.Optional;
 @Service
 public class ProductService {
 
-    @Autowired
-    private ProductRepository productRepository;
+    private final ProductRepository productRepository;
+    private final DataEmbeddingService dataEmbeddingService;
+
+    public ProductService(ProductRepository productRepository, DataEmbeddingService dataEmbeddingService) {
+        this.productRepository = productRepository;
+        this.dataEmbeddingService = dataEmbeddingService;
+    }
 
     public Product save(Product product) {
-        return productRepository.save(product);
+        Product savedProduct = productRepository.save(product);
+        dataEmbeddingService.embedProduct(savedProduct);
+        return savedProduct;
     }
 
     public List<Product> getAll() {
