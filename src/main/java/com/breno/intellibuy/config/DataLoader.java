@@ -62,7 +62,8 @@ public class DataLoader implements CommandLineRunner {
             System.out.println("Existing purchases detected. Skipping dummy data generation.");
         }
 
-        dataEmbeddingService.ingestAllDataToVectorStore();
+        dataEmbeddingService.runInitialEmbeddingIfNeeded();
+
     }
 
     private void generateDummyProducts(int numberOfProducts) {
