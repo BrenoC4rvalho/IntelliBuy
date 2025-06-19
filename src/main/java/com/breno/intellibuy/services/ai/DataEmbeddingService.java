@@ -26,6 +26,8 @@ import java.util.stream.Collectors;
 @Service
 public class DataEmbeddingService {
 
+    private static final String INITIAL_INGESTION_FLAG = "initial_ingestion_complete_v1";
+
     private final ProductRepository productRepository;
     private final CustomerRepository customerRepository;
     private final PurchaseRepository purchaseRepository;
@@ -49,7 +51,18 @@ public class DataEmbeddingService {
     }
 
     @Transactional
-    public void ingestAllDataToVectorStore() {
+    public void runInitialEmbeddingIfNeeded() {
+        if (!initialIngestionHasBeenPerformed()) {
+            System.out.println("First time startup detected. Performing initial bulk data ingestion...");
+            ingestAllData();
+            createIngestionFlag();
+            System.out.println("Initial bulk data ingestion complete.");
+        } else {
+            System.out.println("Initial ingestion flag found. Skipping bulk data ingestion.");
+        }
+    }
+    private void ingestAllData() {
+
         List<Product> allProducts = productRepository.findAll();
         System.out.println("Starting ingestion of " + allProducts.size() + " products to Vector Store.");
 
@@ -116,6 +129,67 @@ public class DataEmbeddingService {
         } else {
             System.out.println("No data to ingest to Vector Store.");
         }
+    }
+
+    private boolean initialIngestionHasBeenPerformed() {
+        SearchRequest request = SearchRequest.builder()
+                .query("checking for ingestion flag")
+                .filterExpression("ingestion_flag == '" + INITIAL_INGESTION_FLAG + "'")
+                .topK(1)
+                .build();
+
+        List<Document> results = vectorStore.similaritySearch(request);
+        return !results.isEmpty();
+    }
+
+    private void createIngestionFlag() {
+        Document flagDocument = new Document(
+                "System flag: Initial data ingestion has been completed.",
+                Map.of("type", "system_flag", "ingestion_flag", INITIAL_INGESTION_FLAG)
+        );
+        vectorStore.add(List.of(flagDocument));
+    }
+
+    public void embedProduct(Product product) {
+        vectorStore.add(List.of(createProductDocument(product)));
+    }
+
+    private Document createProductDocument(Product product) {
+        String content = String.format("Product: %s. Description: %s. Price: $%.2f.",
+                product.getName(), product.getDescription(), product.getPrice());
+        Map<String, Object> metadata = Map.of(
+                "type", "product", "product_id", product.getId().toString()
+        );
+        return new Document(content, metadata);
+    }
+
+    public void embedCustomer(Customer customer) {
+        vectorStore.add(List.of(createCustomerDocument(customer)));
+    }
+
+    private Document createCustomerDocument(Customer customer) {
+        String content = String.format("Customer: %s. CPF: %s. Phone: %s.",
+                customer.getName(), customer.getCpf(), customer.getPhone());
+        Map<String, Object> metadata = Map.of(
+                "type", "customer", "customer_id", customer.getId().toString()
+        );
+        return new Document(content, metadata);
+    }
+
+    public void embedPurchase(Purchase purchase) {
+        vectorStore.add(List.of(createPurchaseDocument(purchase)));
+    }
+
+    private Document createPurchaseDocument(Purchase purchase) {
+        String itemsSummary = purchase.getPurchaseItem().stream()
+                .map(item -> String.format("%d unit(s) of %s", item.getQuantity(), item.getProduct().getName()))
+                .collect(Collectors.joining(", "));
+        String content = String.format("Purchase made by customer %s on %s. Items: [%s]. Total value: $%.2f.",
+                purchase.getCustomer().getName(), purchase.getDatePurchase().toLocalDate().toString(), itemsSummary, purchase.getTotalValue());
+        Map<String, Object> metadata = Map.of(
+                "type", "purchase", "purchase_id", purchase.getId().toString()
+        );
+        return new Document(content, metadata);
     }
 
     public String generateAnswer(String query) {
